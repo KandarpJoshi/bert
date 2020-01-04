@@ -554,6 +554,28 @@ def create_attention_mask_from_input_mask(from_tensor, to_mask):
 
   return mask
 
+def conv_layer_ngram(input_tensor, ngram, initializer, name=None):
+  """A Conv layer with 3gram.
+
+  Args:
+    input_tensor: Float tensor with rank 3.
+    ngram: ngrams to consider.
+    initializer: Kernel initializer.
+    name: The name scope of this layer.
+
+  Returns:
+    float logits Tensor.
+  """
+  last_dim = get_shape_list(input_tensor)[-1]
+  with tf.variable_scope(name):
+    filters = tf.get_variable(
+        name="ngram_filter",
+        shape=[ngram, last_dim, last_dim],
+        initializer=initializer, trainable=True)
+
+  ret = tf.nn.conv1d(
+      input_tensor, filters, stride=1, padding="SAME", name=name)
+  return ret
 
 def attention_layer(from_tensor,
                     to_tensor,
@@ -878,6 +900,9 @@ def transformer_model(input_tensor,
             kernel_initializer=create_initializer(initializer_range))
         layer_output = dropout(layer_output, hidden_dropout_prob)
         layer_output = layer_norm(layer_output + attention_output)
+        layer_output = layer_norm(layer_output + conv_layer_ngram(
+            layer_output, 3, create_initializer(initializer_range),
+            "ngram_filter"))
         prev_output = layer_output
         all_layer_outputs.append(layer_output)
 
